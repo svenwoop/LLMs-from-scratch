@@ -68,7 +68,7 @@ def main():
     model = GPTModel(gpt_config)
     model.load_state_dict(torch.load("model.pth", weights_only=True))
     tokenizer = tiktoken.get_encoding("gpt2")
-    generate_and_print_sample(model, tokenizer, device, start_context="Every effort moves you")
+    generate_and_print_sample(model, tokenizer, device, start_context=args.prompt)
     exit()
 
 if __name__ == "__main__":
