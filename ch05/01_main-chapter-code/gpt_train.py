@@ -8,7 +8,7 @@ import os
 import requests
 import torch
 import tiktoken
-
+import argparse
 
 # Import from local files
 from previous_chapters import GPTModel, create_dataloader_v1, generate_text_simple
@@ -82,7 +82,7 @@ def train_model_simple(model, train_loader, val_loader, optimizer, device, num_e
     # Main training loop
     for epoch in range(num_epochs):
         model.train()  # Set model to training mode
-
+        
         for input_batch, target_batch in train_loader:
             optimizer.zero_grad()  # Reset loss gradients from previous batch iteration
             loss = calc_loss_batch(input_batch, target_batch, model, device)
@@ -99,12 +99,13 @@ def train_model_simple(model, train_loader, val_loader, optimizer, device, num_e
                 val_losses.append(val_loss)
                 track_tokens_seen.append(tokens_seen)
                 print(f"Ep {epoch+1} (Step {global_step:06d}): "
-                      f"Train loss {train_loss:.3f}, Val loss {val_loss:.3f}")
+                      f"Train loss {train_loss:.3f}, Val loss {val_loss:.3f}, Step Per Epoch {len(train_loader)}")
 
-        # Print a sample text after each epoch
-        generate_and_print_sample(
-            model, tokenizer, device, start_context
-        )
+            # Print a sample text after each epoch
+            if global_step % (5*eval_freq) == 0:
+              generate_and_print_sample(
+                  model, tokenizer, device, start_context
+              )
 
     return train_losses, val_losses, track_tokens_seen
 
@@ -130,10 +131,33 @@ def plot_losses(epochs_seen, tokens_seen, train_losses, val_losses):
 
 def main(gpt_config, settings):
 
+    parser = argparse.ArgumentParser(description="Train a GPT-2 model.")
+    parser.add_argument(
+        "--prompt",
+        default="Every effort moves you",
+        help="Prompt text used to seed the generation (default matches the script's built-in prompt)."
+    )
+    parser.add_argument(
+        "--input",
+        default="the-verdict.txt",
+        help="Text file to use for training."
+    )
+    parser.add_argument(
+        "--device",
+        default="auto",
+        help="Device for running training, e.g., cpu, cuda, mps, or auto. Defaults to cpu."
+    )
+
+    args = parser.parse_args()
+    
     torch.manual_seed(123)
-    device_name = "cpu"
-    if torch.cuda.is_available(): device_name = "cuda"
-    if torch.backends.mps.is_available(): device_name = "mps"
+
+    # device selection
+    device_name = args.device
+    if (device_name == "auto"):
+      device_name = "cpu"
+      if torch.cuda.is_available(): device_name = "cuda"
+      if torch.backends.mps.is_available(): device_name = "mps"
     print("using "+device_name+" device")
     device = torch.device(device_name)
 
@@ -141,18 +165,22 @@ def main(gpt_config, settings):
     # Download data if necessary
     ##############################
 
-    file_path = "the-verdict.txt"
-    url = "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt"
+    file_path = args.input
+    with open(file_path, "r", encoding="utf-8") as file:
+      text_data = file.read()
+    
+    #file_path = "the-verdict.txt"
+    #url = "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt"
 
-    if not os.path.exists(file_path):
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        text_data = response.text
-        with open(file_path, "w", encoding="utf-8") as file:
-            file.write(text_data)
-    else:
-        with open(file_path, "r", encoding="utf-8") as file:
-            text_data = file.read()
+    #if not os.path.exists(file_path):
+    #    response = requests.get(url, timeout=30)
+    #    response.raise_for_status()
+    #    text_data = response.text
+    #    with open(file_path, "w", encoding="utf-8") as file:
+    #        file.write(text_data)
+    #else:
+    #    with open(file_path, "r", encoding="utf-8") as file:
+    #        text_data = file.read()
     ##############################
     # Initialize model
     ##############################
@@ -200,7 +228,7 @@ def main(gpt_config, settings):
     train_losses, val_losses, tokens_seen = train_model_simple(
         model, train_loader, val_loader, optimizer, device,
         num_epochs=settings["num_epochs"], eval_freq=5, eval_iter=1,
-        start_context="Every effort moves you", tokenizer=tokenizer
+        start_context=args.prompt, tokenizer=tokenizer
     )
 
     return train_losses, val_losses, tokens_seen, model
@@ -220,7 +248,7 @@ if __name__ == "__main__":
 
     OTHER_SETTINGS = {
         "learning_rate": 5e-4,
-        "num_epochs": 10,
+        "num_epochs": 1,
         "batch_size": 2,
         "weight_decay": 0.1
     }

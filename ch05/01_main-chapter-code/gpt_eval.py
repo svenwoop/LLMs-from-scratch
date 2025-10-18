@@ -39,6 +39,12 @@ def generate_and_print_sample(model, tokenizer, device, start_context):
 def main():
 
     parser = argparse.ArgumentParser(description="Generate text with a pretrained GPT-2 model.")
+    
+    parser.add_argument(
+        "--model",
+        default="model.pth",
+        help="Model to run."
+    )
     parser.add_argument(
         "--prompt",
         default="Every effort moves you",
@@ -46,7 +52,7 @@ def main():
     )
     parser.add_argument(
         "--device",
-        default="cpu",
+        default="auto",
         help="Device for running inference, e.g., cpu, cuda, mps, or auto. Defaults to cpu."
     )
 
@@ -63,10 +69,19 @@ def main():
     }
 
     torch.manual_seed(123)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    device_name = args.device
+    if (device_name == "auto"):
+      device_name = "cpu"
+      if torch.cuda.is_available(): device_name = "cuda"
+      if torch.backends.mps.is_available(): device_name = "mps"
+    print("using "+device_name+" device")
+
+    device = torch.device(device_name)
 
     model = GPTModel(gpt_config)
-    model.load_state_dict(torch.load("model.pth", weights_only=True))
+    model.load_state_dict(torch.load(args.model, weights_only=True))
+    model.to(device)
     tokenizer = tiktoken.get_encoding("gpt2")
     generate_and_print_sample(model, tokenizer, device, start_context=args.prompt)
     exit()
